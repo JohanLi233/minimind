@@ -1,17 +1,43 @@
-import math
-import struct
-import inspect
-import time
-
 from .LMConfig import LMConfig
-from typing import Any, Optional, Tuple, List
-import numpy as np
+
+import math
+from typing import Optional, Tuple, List
 import torch
 import torch.nn.functional as F
 from torch import nn
 from transformers import PreTrainedModel
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
+class DynamicTanh(nn.Module):
+    """
+    实现 Dynamic Tanh (DyT) 层，作为 Normalization 层的替代方案。
+    DyT(x) = γ * tanh(αx) + β
+    """
+    def __init__(self, dim: int, alpha):
+        """
+        初始化 DyT 层。
+
+        参数:
+            dim (int): 输入特征的维度 (对应 Norm 层中的 dim 或 normalized_shape[-1])。
+            init_a (float): 可学习标量 alpha 的初始值。默认为 0.5。
+        """
+        super().__init__()
+        self.dim = dim
+        # 可学习的标量 alpha
+        self.alpha = nn.Parameter(torch.ones(1) * alpha)
+        # 可学习的逐通道缩放 gamma (γ)，初始化为 1
+        self.gamma = nn.Parameter(torch.ones(dim))
+        # 可学习的逐通道平移 beta (β)，初始化为 0
+        self.beta = nn.Parameter(torch.zeros(dim))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        DyT 的前向传播。
+        期望 x 的形状是 (..., dim)。
+        """
+        # alpha (标量) 会自动广播
+        # gamma 和 beta (形状 dim) 会自动广播到 x 的最后一个维度
+        return self.gamma * torch.tanh(self.alpha * x) + self.beta
 
 class RMSNorm(torch.nn.Module):
     def __init__(self, dim: int, eps: float):
@@ -266,8 +292,15 @@ class MiniMindBlock(nn.Module):
         self.attention = Attention(config)
 
         self.layer_id = layer_id
-        self.attention_norm = RMSNorm(config.dim, eps=config.norm_eps)
-        self.ffn_norm = RMSNorm(config.dim, eps=config.norm_eps)
+
+        # RMSNorm
+        # self.attention_norm = RMSNorm(config.dim, eps=config.norm_eps)
+        # self.ffn_norm = RMSNorm(config.dim, eps=config.norm_eps)
+
+        # DynamicTanh
+        self.attention_norm = DynamicTanh(config.dim, alpha=config.alpha * 1.5)
+        self.ffn_norm = DynamicTanh(config.dim, alpha=config.alpha)
+
         self.feed_forward = FeedForward(config) if not config.use_moe else MOEFeedForward(config)
 
     def forward(self, x, pos_cis, past_key_value=None, use_cache=False):
@@ -292,7 +325,11 @@ class MiniMindLM(PreTrainedModel):
         self.tok_embeddings = nn.Embedding(params.vocab_size, params.dim)
         self.dropout = nn.Dropout(params.dropout)
         self.layers = nn.ModuleList([MiniMindBlock(l, params) for l in range(self.n_layers)])
-        self.norm = RMSNorm(params.dim, eps=params.norm_eps)
+
+        # self.norm = RMSNorm(params.dim, eps=params.norm_eps)
+
+        self.norm = DynamicTanh(params.dim, alpha=params.alpha)
+
         self.output = nn.Linear(params.dim, params.vocab_size, bias=False)
         self.tok_embeddings.weight = self.output.weight
         self.register_buffer("pos_cis",

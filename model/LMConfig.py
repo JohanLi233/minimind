@@ -15,6 +15,7 @@ class LMConfig(PretrainedConfig):
             hidden_dim: int = None,
             multiple_of: int = 64,
             norm_eps: float = 1e-5,
+            alpha: float = 0.5,
             max_seq_len: int = 8192,
             rope_theta: int = 1e6,
             dropout: float = 0.0,
@@ -46,6 +47,8 @@ class LMConfig(PretrainedConfig):
         self.rope_theta = rope_theta
         self.dropout = dropout
         self.flash_attn = flash_attn
+        # DynamicTanh
+        self.alpha = alpha
         ####################################################
         # Here are the specific configurations of MOE
         # When use_moe is false, the following is invalid
