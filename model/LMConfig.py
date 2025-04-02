@@ -20,6 +20,9 @@ class LMConfig(PretrainedConfig):
             rope_theta: int = 1e6,
             dropout: float = 0.0,
             flash_attn: bool = True,
+            # MLA
+            kv_latent_dim: int = 32,
+            q_latent_dim: int = 128,
             ####################################################
             # Here are the specific configurations of MOE
             # When use_moe is false, the following is invalid
@@ -49,6 +52,9 @@ class LMConfig(PretrainedConfig):
         self.flash_attn = flash_attn
         # DynamicTanh
         self.alpha = alpha
+        # MLA
+        self.kv_latent_dim = kv_latent_dim
+        self.q_latent_dim = q_latent_dim
         ####################################################
         # Here are the specific configurations of MOE
         # When use_moe is false, the following is invalid

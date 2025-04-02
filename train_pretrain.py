@@ -116,7 +116,14 @@ def init_model(lm_config):
         model = MiniMindLM(lm_config).to(args.device)
 
     tokenizer = AutoTokenizer.from_pretrained('./model/minimind_tokenizer')
-    Logger(f'LLM总参数量：{sum(p.numel() for p in model.parameters() if p.requires_grad) / 1e6:.3f} 百万')
+    model_to_count = model.module if isinstance(model, DistributedDataParallel) else model
+    total_params = sum(p.numel() for p in model_to_count.parameters() if p.requires_grad)
+    trainable_params = sum(p.numel() for p in model_to_count.parameters() if p.requires_grad)
+    total_params_all = sum(p.numel() for p in model_to_count.parameters())
+
+    Logger(f'可训练参数量：{trainable_params / 1e6:.3f} 百万')
+    Logger(f'总参数量：{total_params_all / 1e6:.3f} 百万')
+
     return model, tokenizer
 
 
