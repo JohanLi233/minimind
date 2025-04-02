@@ -96,9 +96,34 @@ def train_epoch(epoch, wandb):
 
 
 def init_model(lm_config):
+    # 添加预训练模型加载功能（唯一修改部分）
+    if args.pretrained:
+        Logger(f'Loading pretrained model from {args.pretrained}')
+        map_location = {'cuda:%d' % 0: 'cuda:%d' % ddp_local_rank} if ddp else args.device
+        state_dict = torch.load(args.pretrained, map_location=map_location)
+
+        # 处理DDP前缀
+        new_state_dict = {}
+        for k, v in state_dict.items():
+            if k.startswith('module.'):
+                new_state_dict[k[7:]] = v
+            else:
+                new_state_dict[k] = v
+
+        model = MiniMindLM(lm_config).to(args.device)
+        model.load_state_dict(new_state_dict)
+    else:
+        model = MiniMindLM(lm_config).to(args.device)
+
     tokenizer = AutoTokenizer.from_pretrained('./model/minimind_tokenizer')
-    model = MiniMindLM(lm_config).to(args.device)
-    Logger(f'LLM总参数量：{sum(p.numel() for p in model.parameters() if p.requires_grad) / 1e6:.3f} 百万')
+    model_to_count = model.module if isinstance(model, DistributedDataParallel) else model
+    total_params = sum(p.numel() for p in model_to_count.parameters() if p.requires_grad)
+    trainable_params = sum(p.numel() for p in model_to_count.parameters() if p.requires_grad)
+    total_params_all = sum(p.numel() for p in model_to_count.parameters())
+
+    Logger(f'可训练参数量：{trainable_params / 1e6:.3f} 百万')
+    Logger(f'总参数量：{total_params_all / 1e6:.3f} 百万')
+
     return model, tokenizer
 
 
@@ -114,11 +139,11 @@ def init_distributed_mode():
     torch.cuda.set_device(DEVICE)
 
 
-# torchrun --nproc_per_node 2 1-pretrain.py
 if __name__ == "__main__":
+    # 添加预训练参数
     parser = argparse.ArgumentParser(description="MiniMind Pretraining")
+    parser.add_argument("--pretrained", type=str, default=None, help="Path to pretrained model")
     parser.add_argument("--out_dir", type=str, default="out")
-    # 若要以最快速度实现zero则epochs设置为1轮；否则应当利用有限的数据训练2~6个epochs。
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--learning_rate", type=float, default=5e-4)

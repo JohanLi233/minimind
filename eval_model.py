@@ -35,7 +35,7 @@ def init_model(args):
     else:
         transformers_model_path = './MiniMind2'
         tokenizer = AutoTokenizer.from_pretrained(transformers_model_path)
-        model = AutoModelForCausalLM.from_pretrained(transformers_model_path, trust_remote_code=True)
+        model = AutoModelForCausalLM.from_pretrained(transformers_model_path, trust_remote_code=True, torch_dtype=torch.bfloat16)
     print(f'MiniMind模型参数量: {sum(p.numel() for p in model.parameters() if p.requires_grad) / 1e6:.2f}M(illion)')
     return model.eval().to(args.device), tokenizer
 
