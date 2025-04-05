@@ -21,8 +21,8 @@ class LMConfig(PretrainedConfig):
             dropout: float = 0.0,
             flash_attn: bool = True,
             # MLA
-            kv_latent_dim: int = 32,
-            q_latent_dim: int = 128,
+            kv_latent_dim: int = 128,
+            q_latent_dim: int = 512,
             ####################################################
             # Here are the specific configurations of MOE
             # When use_moe is false, the following is invalid

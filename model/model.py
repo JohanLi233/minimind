@@ -467,12 +467,12 @@ class MiniMindBlock(nn.Module):
         self.layer_id = layer_id
 
         # RMSNorm
-        self.attention_norm = RMSNorm(config.dim, eps=config.norm_eps)
-        self.ffn_norm = RMSNorm(config.dim, eps=config.norm_eps)
+        # self.attention_norm = RMSNorm(config.dim, eps=config.norm_eps)
+        # self.ffn_norm = RMSNorm(config.dim, eps=config.norm_eps)
 
         # DynamicTanh
-        # self.attention_norm = DynamicTanh(config.dim, alpha=config.alpha * 1.5)
-        # self.ffn_norm = DynamicTanh(config.dim, alpha=config.alpha)
+        self.attention_norm = DynamicTanh(config.dim, alpha=config.alpha * 1.5)
+        self.ffn_norm = DynamicTanh(config.dim, alpha=config.alpha)
 
         self.feed_forward = FeedForward(config) if not config.use_moe else MOEFeedForward(config)
 
@@ -499,9 +499,9 @@ class MiniMindLM(PreTrainedModel):
         self.dropout = nn.Dropout(params.dropout)
         self.layers = nn.ModuleList([MiniMindBlock(l, params) for l in range(self.n_layers)])
 
-        self.norm = RMSNorm(params.dim, eps=params.norm_eps)
+        # self.norm = RMSNorm(params.dim, eps=params.norm_eps)
 
-        # self.norm = DynamicTanh(params.dim, alpha=params.alpha)
+        self.norm = DynamicTanh(params.dim, alpha=params.alpha)
 
         self.output = nn.Linear(params.dim, params.vocab_size, bias=False)
         self.tok_embeddings.weight = self.output.weight
