@@ -97,10 +97,10 @@ def train_epoch(epoch, wandb):
 
 def init_model(lm_config):
     # 添加预训练模型加载功能（唯一修改部分）
-    if args.pretrained:
-        Logger(f'Loading pretrained model from {args.pretrained}')
+    if args.load_checkpoint:
+        Logger(f'Loading pretrained model from {args.load_checkpoint}')
         map_location = {'cuda:%d' % 0: 'cuda:%d' % ddp_local_rank} if ddp else args.device
-        state_dict = torch.load(args.pretrained, map_location=map_location)
+        state_dict = torch.load(args.load_checkpoint, map_location=map_location)
 
         # 处理DDP前缀
         new_state_dict = {}
@@ -117,7 +117,6 @@ def init_model(lm_config):
 
     tokenizer = AutoTokenizer.from_pretrained('./model/minimind_tokenizer')
     model_to_count = model.module if isinstance(model, DistributedDataParallel) else model
-    total_params = sum(p.numel() for p in model_to_count.parameters() if p.requires_grad)
     trainable_params = sum(p.numel() for p in model_to_count.parameters() if p.requires_grad)
     total_params_all = sum(p.numel() for p in model_to_count.parameters())
 
@@ -132,9 +131,7 @@ def init_distributed_mode():
     global ddp_local_rank, DEVICE
 
     dist.init_process_group(backend="nccl")
-    ddp_rank = int(os.environ["RANK"])
     ddp_local_rank = int(os.environ["LOCAL_RANK"])
-    ddp_world_size = int(os.environ["WORLD_SIZE"])
     DEVICE = f"cuda:{ddp_local_rank}"
     torch.cuda.set_device(DEVICE)
 
@@ -142,7 +139,7 @@ def init_distributed_mode():
 if __name__ == "__main__":
     # 添加预训练参数
     parser = argparse.ArgumentParser(description="MiniMind Pretraining")
-    parser.add_argument("--pretrained", type=str, default=None, help="Path to pretrained model")
+    parser.add_argument("--load_checkpoint", type=str, default=None, help="Path to checkpoint")
     parser.add_argument("--out_dir", type=str, default="out")
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("--batch_size", type=int, default=32)

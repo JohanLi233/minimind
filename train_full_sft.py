@@ -97,7 +97,23 @@ def train_epoch(epoch, wandb):
 
 def init_model(lm_config):
     tokenizer = AutoTokenizer.from_pretrained('./model/minimind_tokenizer')
-    model = MiniMindLM(lm_config)
+    if args.load_checkpoint:
+        Logger(f'Loading pretrained model from {args.load_checkpoint}')
+        map_location = {'cuda:%d' % 0: 'cuda:%d' % ddp_local_rank} if ddp else args.device
+        state_dict = torch.load(args.load_checkpoint, map_location=map_location)
+
+        # 处理DDP前缀
+        new_state_dict = {}
+        for k, v in state_dict.items():
+            if k.startswith('module.'):
+                new_state_dict[k[7:]] = v
+            else:
+                new_state_dict[k] = v
+
+        model = MiniMindLM(lm_config).to(args.device)
+        model.load_state_dict(new_state_dict)
+    else:
+        model = MiniMindLM(lm_config).to(args.device)
     moe_path = '_moe' if lm_config.use_moe else ''
     ckp = f'./out/pretrain_{lm_config.dim}{moe_path}.pth'
     state_dict = torch.load(ckp, map_location=args.device)
@@ -121,6 +137,8 @@ def init_distributed_mode():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MiniMind Full SFT")
+    parser.add_argument("--load_checkpoint", type=str, default=None, help="path to load checkpoint")
+
     parser.add_argument("--out_dir", type=str, default="out")
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("--batch_size", type=int, default=32)
